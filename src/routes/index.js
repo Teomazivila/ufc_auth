@@ -4,8 +4,7 @@ import { logger } from '../utils/logger.js';
 
 // Import route modules
 import healthRoutes from './health.js';
-// TODO: Implement in Week 2
-// import authRoutes from './auth.js';
+import authRoutes from './auth.js';
 // TODO: Implement in Week 3
 // import userRoutes from './users.js';
 
@@ -21,8 +20,8 @@ router.use('/health', healthRoutes);
 // API v1 routes
 const v1Router = Router();
 
-// TODO: Authentication routes (Week 2)
-// v1Router.use('/auth', authRoutes);
+// Authentication routes
+v1Router.use('/auth', authRoutes);
 
 // TODO: User management routes (Week 3)
 // v1Router.use('/users', userRoutes);
@@ -42,13 +41,20 @@ router.get('/api', (req, res) => {
       timestamp: new Date().toISOString(),
       endpoints: {
         health: '/health',
-        // TODO: Add auth endpoints in Week 2
-        // auth: '/api/v1/auth',
-        // TODO: Add user endpoints in Week 3
-        // users: '/api/v1/users'
+        auth: '/api/v1/auth',
+        users: '/api/v1/users', // Will be implemented in Week 3
+        admin: '/api/v1/admin'  // Will be implemented in Week 3
       },
-      documentation: '/api/docs',
-      status: 'operational'
+      features: {
+        authentication: 'JWT with refresh tokens',
+        twoFactor: 'TOTP with backup codes',
+        security: 'Rate limiting, account lockout, audit logging',
+        authorization: 'RBAC (Role-Based Access Control)' // Week 3
+      },
+      documentation: {
+        swagger: '/api/docs', // Will be implemented in Week 4
+        postman: '/api/postman' // Will be implemented in Week 4
+      }
     }
   });
 });

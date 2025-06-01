@@ -16,6 +16,7 @@
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "test:week1": "node scripts/test-week1.js",
+    "test:week2": "node scripts/test-week2.js",
     "lint": "eslint src/ --ext .js",
     "lint:fix": "eslint src/ --ext .js --fix",
     "format": "prettier --write src/",
@@ -88,10 +89,8 @@
     "xss": "^1.0.14",
     "hpp": "^0.2.3",
     "winston-daily-rotate-file": "^4.7.1",
-    "dumb-init": "^1.2.5",
     "express-brute": "^1.0.1",
     "express-brute-redis": "^0.0.1",
-    "crypto-random-string": "^5.0.0",
     "argon2": "^0.31.2"
   },
   "devDependencies": {
