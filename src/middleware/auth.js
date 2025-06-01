@@ -44,7 +44,7 @@ export const authenticateToken = async (req, res, next) => {
     }
 
     // Verify token
-    const decoded = jwt.verify(token, config.jwt.accessSecret, {
+    const decoded = jwt.verify(token, config.jwt.secret, {
       issuer: config.jwt.issuer,
       audience: config.jwt.audience
     });
@@ -69,8 +69,8 @@ export const authenticateToken = async (req, res, next) => {
       throw new UnauthorizedError('User not found');
     }
 
-    if (!user.is_active) {
-      throw new UnauthorizedError('Account is deactivated');
+    if (user.status !== 'active') {
+      throw new UnauthorizedError('Account is not active');
     }
 
     if (user.isLocked()) {
@@ -268,7 +268,7 @@ export const authRateLimit = async (req, res, next) => {
 
     // Increment counter
     if (count === 0) {
-      await getRedisClient().setEx(key, windowSeconds, 1);
+      await getRedisClient().setEx(key, windowSeconds, '1');
     } else {
       await getRedisClient().incr(key);
     }
@@ -321,7 +321,7 @@ export const requireVerification = (req, res, next) => {
       throw new UnauthorizedError('Authentication required');
     }
 
-    if (!req.user.is_verified) {
+    if (!req.user.email_verified) {
       throw new ForbiddenError('Account verification required', 'REQUIRE_VERIFICATION');
     }
 

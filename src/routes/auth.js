@@ -196,7 +196,7 @@ router.post('/refresh',
     
     // Get user
     const user = await User.findById(decoded.id);
-    if (!user || !user.is_active) {
+    if (!user || user.status !== 'active') {
       throw new UnauthorizedError('Invalid refresh token');
     }
 

@@ -115,6 +115,11 @@ export const getPool = () => {
  * Execute a query with automatic connection handling
  */
 export const query = async (text, params = []) => {
+  // Ensure pool is initialized
+  if (!pool) {
+    throw new Error('Database pool not initialized. Call connectDatabase() first.');
+  }
+  
   const startTime = Date.now();
   const client = await pool.connect();
   

@@ -19,14 +19,19 @@ export class User {
     this.password_hash = userData.password_hash;
     this.first_name = userData.first_name;
     this.last_name = userData.last_name;
-    this.is_active = userData.is_active;
-    this.is_verified = userData.is_verified;
+    this.phone = userData.phone;
+    this.status = userData.status;
+    this.email_verified = userData.email_verified;
+    this.email_verification_token = userData.email_verification_token;
+    this.email_verification_expires = userData.email_verification_expires;
+    this.password_reset_token = userData.password_reset_token;
+    this.password_reset_expires = userData.password_reset_expires;
+    this.last_login = userData.last_login;
+    this.login_attempts = userData.login_attempts;
+    this.locked_until = userData.locked_until;
     this.two_factor_enabled = userData.two_factor_enabled;
     this.two_factor_secret = userData.two_factor_secret;
     this.backup_codes = userData.backup_codes;
-    this.failed_login_attempts = userData.failed_login_attempts;
-    this.locked_until = userData.locked_until;
-    this.last_login = userData.last_login;
     this.created_at = userData.created_at;
     this.updated_at = userData.updated_at;
   }
@@ -297,7 +302,7 @@ export class User {
         crypto.randomBytes(4).toString('hex').toUpperCase()
       );
 
-      const query = `
+      const queryText = `
         UPDATE users 
         SET two_factor_enabled = true, 
             two_factor_secret = $1, 
@@ -306,7 +311,7 @@ export class User {
         WHERE id = $3
       `;
 
-      await query(query, [secret, JSON.stringify(backupCodes), this.id]);
+      await query(queryText, [secret, JSON.stringify(backupCodes), this.id]);
       
       this.two_factor_enabled = true;
       this.two_factor_secret = secret;
@@ -326,7 +331,7 @@ export class User {
    */
   async disable2FA() {
     try {
-      const query = `
+      const queryText = `
         UPDATE users 
         SET two_factor_enabled = false, 
             two_factor_secret = NULL, 
@@ -335,7 +340,7 @@ export class User {
         WHERE id = $1
       `;
 
-      await query(query, [this.id]);
+      await query(queryText, [this.id]);
       
       this.two_factor_enabled = false;
       this.two_factor_secret = null;
@@ -365,13 +370,13 @@ export class User {
       // Remove used backup code
       this.backup_codes.splice(codeIndex, 1);
 
-      const query = `
+      const queryText = `
         UPDATE users 
         SET backup_codes = $1, updated_at = CURRENT_TIMESTAMP
         WHERE id = $2
       `;
 
-      await query(query, [JSON.stringify(this.backup_codes), this.id]);
+      await query(queryText, [JSON.stringify(this.backup_codes), this.id]);
 
       logger.info('Backup code used', { userId: this.id, remainingCodes: this.backup_codes.length });
       
@@ -387,7 +392,7 @@ export class User {
    */
   async recordFailedLogin() {
     try {
-      const attempts = (this.failed_login_attempts || 0) + 1;
+      const attempts = (this.login_attempts || 0) + 1;
       let lockedUntil = null;
 
       // Lock account after 5 failed attempts for 15 minutes
@@ -395,17 +400,17 @@ export class User {
         lockedUntil = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
       }
 
-      const query = `
+      const queryText = `
         UPDATE users 
-        SET failed_login_attempts = $1, 
+        SET login_attempts = $1, 
             locked_until = $2,
             updated_at = CURRENT_TIMESTAMP
         WHERE id = $3
       `;
 
-      await query(query, [attempts, lockedUntil, this.id]);
+      await query(queryText, [attempts, lockedUntil, this.id]);
       
-      this.failed_login_attempts = attempts;
+      this.login_attempts = attempts;
       this.locked_until = lockedUntil;
 
       logger.warn('Failed login attempt recorded', { 
@@ -424,18 +429,18 @@ export class User {
    */
   async resetFailedLogins() {
     try {
-      const query = `
+      const queryText = `
         UPDATE users 
-        SET failed_login_attempts = 0, 
+        SET login_attempts = 0, 
             locked_until = NULL,
             last_login = CURRENT_TIMESTAMP,
             updated_at = CURRENT_TIMESTAMP
         WHERE id = $1
       `;
 
-      await query(query, [this.id]);
+      await query(queryText, [this.id]);
       
-      this.failed_login_attempts = 0;
+      this.login_attempts = 0;
       this.locked_until = null;
       this.last_login = new Date();
 
@@ -464,10 +469,16 @@ export class User {
       username: this.username,
       first_name: this.first_name,
       last_name: this.last_name,
-      is_active: this.is_active,
-      is_verified: this.is_verified,
-      two_factor_enabled: this.two_factor_enabled,
+      phone: this.phone,
+      status: this.status,
+      email_verified: this.email_verified,
+      email_verification_token: this.email_verification_token,
+      email_verification_expires: this.email_verification_expires,
+      password_reset_token: this.password_reset_token,
+      password_reset_expires: this.password_reset_expires,
       last_login: this.last_login,
+      login_attempts: this.login_attempts,
+      two_factor_enabled: this.two_factor_enabled,
       created_at: this.created_at
     };
   }
