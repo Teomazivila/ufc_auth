@@ -5,8 +5,10 @@ import { logger } from '../utils/logger.js';
 // Import route modules
 import healthRoutes from './health.js';
 import authRoutes from './auth.js';
-// TODO: Implement in Week 3
-// import userRoutes from './users.js';
+// Week 3: RBAC routes
+import roleRoutes from './roleRoutes.js';
+import permissionRoutes from './permissionRoutes.js';
+import userManagementRoutes from './userManagementRoutes.js';
 
 const router = Router();
 
@@ -23,8 +25,10 @@ const v1Router = Router();
 // Authentication routes
 v1Router.use('/auth', authRoutes);
 
-// TODO: User management routes (Week 3)
-// v1Router.use('/users', userRoutes);
+// Week 3: RBAC routes
+v1Router.use('/roles', roleRoutes);
+v1Router.use('/permissions', permissionRoutes);
+v1Router.use('/users', userManagementRoutes);
 
 // Mount v1 routes
 router.use('/api/v1', v1Router);
@@ -42,14 +46,15 @@ router.get('/api', (req, res) => {
       endpoints: {
         health: '/health',
         auth: '/api/v1/auth',
-        users: '/api/v1/users', // Will be implemented in Week 3
-        admin: '/api/v1/admin'  // Will be implemented in Week 3
+        users: '/api/v1/users',
+        roles: '/api/v1/roles',
+        permissions: '/api/v1/permissions'
       },
       features: {
         authentication: 'JWT with refresh tokens',
         twoFactor: 'TOTP with backup codes',
         security: 'Rate limiting, account lockout, audit logging',
-        authorization: 'RBAC (Role-Based Access Control)' // Week 3
+        authorization: 'RBAC (Role-Based Access Control)'
       },
       documentation: {
         swagger: '/api/docs', // Will be implemented in Week 4
@@ -64,10 +69,11 @@ logger.info('API routes registered', {
   version: 'v1',
   routes: [
     'GET /api',
-    'GET /health/*'
-    // TODO: Add more routes in upcoming weeks
-    // 'POST /api/v1/auth/*',
-    // 'GET /api/v1/users/*'
+    'GET /health/*',
+    'POST /api/v1/auth/*',
+    'GET /api/v1/users/*',
+    'GET /api/v1/roles/*',
+    'GET /api/v1/permissions/*'
   ]
 });
 

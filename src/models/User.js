@@ -460,6 +460,223 @@ export class User {
   }
 
   /**
+   * Assign role to user
+   */
+  async assignRole(roleId) {
+    try {
+      const queryText = `
+        INSERT INTO user_roles (user_id, role_id)
+        VALUES ($1, $2)
+        ON CONFLICT (user_id, role_id) DO NOTHING
+        RETURNING *
+      `;
+      
+      const result = await query(queryText, [this.id, roleId]);
+      
+      logger.info('Role assigned to user', { 
+        userId: this.id, 
+        roleId,
+        email: this.email 
+      });
+      
+      return result.rows.length > 0;
+    } catch (error) {
+      logger.error('Error assigning role to user:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Remove role from user
+   */
+  async removeRole(roleId) {
+    try {
+      const queryText = `
+        DELETE FROM user_roles
+        WHERE user_id = $1 AND role_id = $2
+        RETURNING *
+      `;
+      
+      const result = await query(queryText, [this.id, roleId]);
+      
+      logger.info('Role removed from user', { 
+        userId: this.id, 
+        roleId,
+        email: this.email 
+      });
+      
+      return result.rows.length > 0;
+    } catch (error) {
+      logger.error('Error removing role from user:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Set user roles (replace all existing roles)
+   */
+  async setRoles(roleIds) {
+    try {
+      // Start transaction
+      await query('BEGIN');
+
+      // Remove all existing roles
+      await query('DELETE FROM user_roles WHERE user_id = $1', [this.id]);
+
+      // Add new roles
+      if (roleIds && roleIds.length > 0) {
+        const values = roleIds.map((roleId, index) => 
+          `($1, $${index + 2})`
+        ).join(', ');
+        
+        const insertQuery = `
+          INSERT INTO user_roles (user_id, role_id)
+          VALUES ${values}
+        `;
+        
+        await query(insertQuery, [this.id, ...roleIds]);
+      }
+
+      await query('COMMIT');
+
+      logger.info('Roles set for user', { 
+        userId: this.id, 
+        roleCount: roleIds?.length || 0,
+        email: this.email 
+      });
+      
+      return true;
+    } catch (error) {
+      await query('ROLLBACK');
+      logger.error('Error setting roles for user:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get user roles with permissions
+   */
+  async getRoles() {
+    try {
+      const queryText = `
+        SELECT r.*, 
+               COALESCE(
+                 json_agg(
+                   json_build_object(
+                     'id', p.id,
+                     'name', p.name,
+                     'description', p.description,
+                     'resource', p.resource,
+                     'action', p.action
+                   )
+                 ) FILTER (WHERE p.id IS NOT NULL), 
+                 '[]'
+               ) as permissions
+        FROM roles r
+        INNER JOIN user_roles ur ON r.id = ur.role_id
+        LEFT JOIN role_permissions rp ON r.id = rp.role_id
+        LEFT JOIN permissions p ON rp.permission_id = p.id
+        WHERE ur.user_id = $1
+        GROUP BY r.id
+        ORDER BY r.name
+      `;
+      
+      const result = await query(queryText, [this.id]);
+      return result.rows;
+    } catch (error) {
+      logger.error('Error getting user roles:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get all user permissions (from all roles)
+   */
+  async getPermissions() {
+    try {
+      const queryText = `
+        SELECT DISTINCT p.*
+        FROM permissions p
+        INNER JOIN role_permissions rp ON p.id = rp.permission_id
+        INNER JOIN roles r ON rp.role_id = r.id
+        INNER JOIN user_roles ur ON r.id = ur.role_id
+        WHERE ur.user_id = $1
+        ORDER BY p.resource, p.action, p.name
+      `;
+      
+      const result = await query(queryText, [this.id]);
+      return result.rows;
+    } catch (error) {
+      logger.error('Error getting user permissions:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Check if user has specific permission
+   */
+  async hasPermission(permissionName) {
+    try {
+      const queryText = `
+        SELECT COUNT(*) as count
+        FROM permissions p
+        INNER JOIN role_permissions rp ON p.id = rp.permission_id
+        INNER JOIN roles r ON rp.role_id = r.id
+        INNER JOIN user_roles ur ON r.id = ur.role_id
+        WHERE ur.user_id = $1 AND p.name = $2
+      `;
+      
+      const result = await query(queryText, [this.id, permissionName]);
+      return parseInt(result.rows[0].count) > 0;
+    } catch (error) {
+      logger.error('Error checking user permission:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Check if user has specific role
+   */
+  async hasRole(roleName) {
+    try {
+      const queryText = `
+        SELECT COUNT(*) as count
+        FROM roles r
+        INNER JOIN user_roles ur ON r.id = ur.role_id
+        WHERE ur.user_id = $1 AND r.name = $2
+      `;
+      
+      const result = await query(queryText, [this.id, roleName]);
+      return parseInt(result.rows[0].count) > 0;
+    } catch (error) {
+      logger.error('Error checking user role:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Check if user can perform action on resource
+   */
+  async canPerform(resource, action) {
+    try {
+      const queryText = `
+        SELECT COUNT(*) as count
+        FROM permissions p
+        INNER JOIN role_permissions rp ON p.id = rp.permission_id
+        INNER JOIN roles r ON rp.role_id = r.id
+        INNER JOIN user_roles ur ON r.id = ur.role_id
+        WHERE ur.user_id = $1 AND p.resource = $2 AND p.action = $3
+      `;
+      
+      const result = await query(queryText, [this.id, resource, action]);
+      return parseInt(result.rows[0].count) > 0;
+    } catch (error) {
+      logger.error('Error checking user capability:', error);
+      return false;
+    }
+  }
+
+  /**
    * Get safe user data (without sensitive information)
    */
   toSafeObject() {

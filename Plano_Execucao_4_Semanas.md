@@ -90,11 +90,16 @@ Desenvolvimento incremental da API REST de Gestão de Identidades com foco em fu
 - Gestão de funções e permissões
 - Relatórios básicos de utilização
 
-**Entregáveis Semana 3:**
-- Sistema RBAC completo
-- Gestão completa de utilizadores
-- Funcionalidades administrativas
-- Recovery de passwords
+**Entregáveis Semana 3:** ✅ COMPLETOS
+- ✅ Sistema RBAC completo com 4 roles padrão (admin, moderator, user, viewer)
+- ✅ 25 permissions organizadas por recursos (users, roles, permissions, profile, auth, system, audit)
+- ✅ Gestão completa de utilizadores com atribuição de roles
+- ✅ Funcionalidades administrativas (estatísticas, gestão de status)
+- ✅ Middleware de autorização flexível e granular
+- ✅ Endpoints para todas as operações RBAC
+- ✅ Script de inicialização do sistema
+- ✅ Validação completa em todas as rotas
+- 🔄 Recovery de passwords (será implementado na Semana 4)
 
 ---
 
@@ -136,8 +141,15 @@ Desenvolvimento incremental da API REST de Gestão de Identidades com foco em fu
 ### Marco 2 (Fim Semana 2)
 ✅ Segurança avançada e 2FA implementados
 
-### Marco 3 (Fim Semana 3)
+### Marco 3 (Fim Semana 3) ✅ COMPLETO
 ✅ Sistema completo de autorização e gestão
+- ✅ Sistema RBAC (Role-Based Access Control) implementado
+- ✅ Modelos de Role e Permission criados
+- ✅ Middleware de autorização completo
+- ✅ Controladores para gestão de roles, permissions e utilizadores
+- ✅ Rotas com validação e autorização adequada
+- ✅ Script de inicialização do sistema RBAC
+- ✅ Gestão completa de utilizadores com roles e permissions
 
 ### Marco 4 (Fim Semana 4)
 ✅ Projecto finalizado e documentado
@@ -174,10 +186,14 @@ Desenvolvimento incremental da API REST de Gestão de Identidades com foco em fu
 - Rate limiting efectivo
 - Protecção contra ataques básicos
 
-### Semana 3: ✅ Sistema Completo
-- RBAC implementado
-- Gestão de utilizadores completa
-- Funcionalidades administrativas
+### Semana 3: ✅ Sistema Completo - CONCLUÍDA
+- ✅ RBAC implementado com roles e permissions
+- ✅ Gestão de utilizadores completa
+- ✅ Funcionalidades administrativas
+- ✅ Middleware de autorização granular
+- ✅ Endpoints para gestão de roles e permissions
+- ✅ Sistema de inicialização RBAC
+- ✅ Validação e segurança em todas as rotas
 
 ### Semana 4: ✅ Qualidade e Entrega
 - Todos os testes passam
@@ -202,6 +218,50 @@ Desenvolvimento incremental da API REST de Gestão de Identidades com foco em fu
 - **Total**: 120-140 horas
 - **Por semana**: 30-35 horas
 - **Por dia**: 4-5 horas
+
+---
+
+---
+
+## 📊 **Estado Atual do Projeto (Janeiro 2025)**
+
+### ✅ **SEMANAS COMPLETAS: 3/4 (75%)**
+
+#### **Semana 1** ✅ - Fundações (COMPLETA)
+- ✅ Configuração completa do projeto
+- ✅ Autenticação básica com JWT
+- ✅ Base de dados PostgreSQL e Redis
+- ✅ Middleware de autenticação
+- ✅ Testes básicos implementados
+
+#### **Semana 2** ✅ - Segurança Avançada (COMPLETA)
+- ✅ Refresh tokens e gestão de sessões
+- ✅ Sistema 2FA completo (TOTP + backup codes)
+- ✅ Rate limiting e proteções de segurança
+- ✅ Bloqueio de contas e logs de auditoria
+- ✅ Headers de segurança implementados
+
+#### **Semana 3** ✅ - RBAC e Gestão (COMPLETA)
+- ✅ Sistema RBAC completo implementado
+- ✅ 4 roles padrão + 25 permissions organizadas
+- ✅ Middleware de autorização granular
+- ✅ Gestão completa de utilizadores
+- ✅ Endpoints administrativos funcionais
+- ✅ Script de inicialização RBAC
+
+#### **Semana 4** 🔄 - Finalização (EM ANDAMENTO)
+- 🔄 Sistema de auditoria completo
+- 🔄 Recovery de passwords
+- 🔄 Testes de integração completos
+- 🔄 Documentação final
+- 🔄 Relatório de segurança
+
+### 🚀 **Próximos Passos:**
+1. **Recovery de passwords** (gestão de perfis)
+2. **Sistema de auditoria** avançado
+3. **Notificações por email**
+4. **Testes de segurança** completos
+5. **Documentação final** e demonstração
 
 ---
 
