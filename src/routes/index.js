@@ -9,6 +9,8 @@ import authRoutes from './auth.js';
 import roleRoutes from './roleRoutes.js';
 import permissionRoutes from './permissionRoutes.js';
 import userManagementRoutes from './userManagementRoutes.js';
+// Week 4: Audit routes
+import auditRoutes from './auditRoutes.js';
 
 const router = Router();
 
@@ -30,6 +32,9 @@ v1Router.use('/roles', roleRoutes);
 v1Router.use('/permissions', permissionRoutes);
 v1Router.use('/users', userManagementRoutes);
 
+// Week 4: Audit routes
+v1Router.use('/audit', auditRoutes);
+
 // Mount v1 routes
 router.use('/api/v1', v1Router);
 
@@ -48,7 +53,8 @@ router.get('/api', (req, res) => {
         auth: '/api/v1/auth',
         users: '/api/v1/users',
         roles: '/api/v1/roles',
-        permissions: '/api/v1/permissions'
+        permissions: '/api/v1/permissions',
+        audit: '/api/v1/audit'
       },
       features: {
         authentication: 'JWT with refresh tokens',

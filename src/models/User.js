@@ -677,6 +677,149 @@ export class User {
   }
 
   /**
+   * Generate secure password reset token
+   * Implements Zero Trust principle: "never trust, always verify"
+   */
+  async generatePasswordResetToken() {
+    try {
+      // Generate cryptographically secure token
+      const token = crypto.randomBytes(32).toString('hex');
+      const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+      
+      // Set expiration to 1 hour (following 2025 security standards)
+      const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
+
+      const updateQuery = `
+        UPDATE users 
+        SET 
+          password_reset_token = $1,
+          password_reset_expires = $2,
+          updated_at = CURRENT_TIMESTAMP
+        WHERE id = $3
+      `;
+
+      await query(updateQuery, [hashedToken, expiresAt, this.id]);
+
+      logger.info('Password reset token generated', {
+        userId: this.id,
+        expiresAt: expiresAt.toISOString()
+      });
+
+      // Return unhashed token for email
+      return token;
+    } catch (error) {
+      logger.error('Error generating password reset token:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Verify password reset token
+   * Implements secure token validation
+   */
+  static async verifyPasswordResetToken(token) {
+    try {
+      if (!token) {
+        throw new Error('Reset token is required');
+      }
+
+      // Hash the provided token to compare with stored hash
+      const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+
+      const queryText = `
+        SELECT * FROM users 
+        WHERE password_reset_token = $1 
+        AND password_reset_expires > CURRENT_TIMESTAMP
+        AND status = 'active'
+      `;
+
+      const result = await query(queryText, [hashedToken]);
+
+      if (result.rows.length === 0) {
+        logger.warn('Invalid or expired password reset token', {
+          tokenHash: hashedToken.substring(0, 8) + '...'
+        });
+        return null;
+      }
+
+      return new User(result.rows[0]);
+    } catch (error) {
+      logger.error('Error verifying password reset token:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Reset password using valid token
+   * Implements secure password reset following best practices
+   */
+  async resetPassword(newPassword, token) {
+    try {
+      // Hash new password
+      const passwordHash = await bcrypt.hash(newPassword, 12);
+
+      // Clear reset token and update password
+      const updateQuery = `
+        UPDATE users 
+        SET 
+          password_hash = $1,
+          password_reset_token = NULL,
+          password_reset_expires = NULL,
+          login_attempts = 0,
+          locked_until = NULL,
+          updated_at = CURRENT_TIMESTAMP
+        WHERE id = $2
+      `;
+
+      await query(updateQuery, [passwordHash, this.id]);
+
+      // Revoke all refresh tokens to force re-login
+      await this.revokeAllRefreshTokens();
+
+      logger.info('Password reset successfully', {
+        userId: this.id,
+        email: this.email
+      });
+
+      return true;
+    } catch (error) {
+      logger.error('Error resetting password:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Clean expired password reset tokens
+   * Maintenance method for security hygiene
+   */
+  static async cleanExpiredResetTokens() {
+    try {
+      const cleanupQuery = `
+        UPDATE users 
+        SET 
+          password_reset_token = NULL,
+          password_reset_expires = NULL,
+          updated_at = CURRENT_TIMESTAMP
+        WHERE password_reset_expires < CURRENT_TIMESTAMP
+        AND password_reset_token IS NOT NULL
+      `;
+
+      const result = await query(cleanupQuery);
+      
+      if (result.rowCount > 0) {
+        logger.info('Cleaned expired password reset tokens', {
+          tokensCleared: result.rowCount
+        });
+      }
+
+      return result.rowCount;
+    } catch (error) {
+      logger.error('Error cleaning expired reset tokens:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Get safe user data (without sensitive information)
    */
   toSafeObject() {
@@ -689,10 +832,6 @@ export class User {
       phone: this.phone,
       status: this.status,
       email_verified: this.email_verified,
-      email_verification_token: this.email_verification_token,
-      email_verification_expires: this.email_verification_expires,
-      password_reset_token: this.password_reset_token,
-      password_reset_expires: this.password_reset_expires,
       last_login: this.last_login,
       login_attempts: this.login_attempts,
       two_factor_enabled: this.two_factor_enabled,

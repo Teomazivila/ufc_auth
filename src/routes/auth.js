@@ -493,7 +493,8 @@ router.post('/forgot-password',
 
     const user = await User.findByEmail(email);
     
-    // Always return success to prevent email enumeration
+    // Always return success to prevent email enumeration attacks
+    // Following Zero Trust principle: "never trust, always verify"
     if (!user) {
       logger.warn('Password reset requested for non-existent email', { 
         email,
@@ -508,20 +509,126 @@ router.post('/forgot-password',
       });
     }
 
-    // Generate reset token (implement in next iteration)
-    // For now, just log the request
-    logger.info('Password reset requested', { 
-      userId: user.id,
-      email: user.email,
-      requestId: req.requestId 
-    });
+    try {
+      // Generate secure reset token
+      const resetToken = await user.generatePasswordResetToken();
+      
+      // Import email service dynamically to avoid circular dependencies
+      const { emailService } = await import('../services/EmailService.js');
+      
+      // Send password reset email
+      await emailService.sendPasswordResetEmail(
+        user.email, 
+        resetToken, 
+        user.first_name
+      );
 
+      // Log security event
+      const { AuditLog } = await import('../models/AuditLog.js');
+      await AuditLog.logSecurityEvent('PASSWORD_RESET_REQUESTED', req, {
+        userId: user.id,
+        email: user.email
+      });
+
+      logger.info('Password reset email sent', { 
+        userId: user.id,
+        email: user.email,
+        requestId: req.requestId 
+      });
+
+    } catch (error) {
+      logger.error('Error processing password reset request:', {
+        error: error.message,
+        email: user.email,
+        requestId: req.requestId
+      });
+    }
+
+    // Always return success regardless of outcome for security
     res.json({
       success: true,
       data: {
         message: 'If an account with that email exists, a password reset link has been sent.'
       }
     });
+  })
+);
+
+/**
+ * @route   POST /auth/reset-password
+ * @desc    Reset password with valid token
+ * @access  Public
+ */
+router.post('/reset-password',
+  authRateLimit,
+  validateBody(resetPasswordConfirmSchema),
+  asyncHandler(async (req, res) => {
+    const { token, newPassword } = req.body;
+
+    try {
+      // Verify reset token
+      const user = await User.verifyPasswordResetToken(token);
+      
+      if (!user) {
+        throw new UnauthorizedError('Invalid or expired reset token');
+      }
+
+      // Reset password
+      await user.resetPassword(newPassword, token);
+
+      // Import services
+      const { emailService } = await import('../services/EmailService.js');
+      const { AuditLog } = await import('../models/AuditLog.js');
+
+      // Send security notification
+      await emailService.sendSecurityAlert(
+        user.email,
+        'PASSWORD_CHANGED',
+        {
+          ip_address: req.ip,
+          user_agent: req.get('User-Agent'),
+          timestamp: new Date().toISOString()
+        },
+        user.first_name
+      );
+
+      // Log security event
+      await AuditLog.logSecurityEvent('PASSWORD_RESET_COMPLETED', req, {
+        userId: user.id,
+        email: user.email,
+        success: true
+      });
+
+      logger.info('Password reset completed', {
+        userId: user.id,
+        email: user.email,
+        requestId: req.requestId
+      });
+
+      res.json({
+        success: true,
+        data: {
+          message: 'Password has been reset successfully. Please log in with your new password.'
+        }
+      });
+
+    } catch (error) {
+      // Log failed attempt
+      const { AuditLog } = await import('../models/AuditLog.js');
+      await AuditLog.logSecurityEvent('PASSWORD_RESET_FAILED', req, {
+        success: false,
+        error: error.message,
+        token: token.substring(0, 8) + '...'
+      });
+
+      logger.warn('Password reset attempt failed', {
+        error: error.message,
+        token: token.substring(0, 8) + '...',
+        requestId: req.requestId
+      });
+
+      throw error;
+    }
   })
 );
 
