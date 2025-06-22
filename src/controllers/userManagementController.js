@@ -28,8 +28,8 @@ export const getUsers = async (req, res) => {
     const limitNum = Math.min(parseInt(limit), 100); // Max 100 per page
 
     // Build dynamic WHERE clause
-    let whereConditions = [];
-    let queryParams = [];
+    const whereConditions = [];
+    const queryParams = [];
     let paramIndex = 1;
 
     if (search) {

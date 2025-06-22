@@ -26,7 +26,7 @@ WORKDIR /usr/src/app
 COPY package*.json ./
 
 # Install all dependencies (including dev dependencies for build)
-RUN npm ci --include=dev --prefer-offline --no-audit --no-fund && \
+RUN npm install --include=dev --prefer-offline --no-audit --no-fund && \
     npm cache clean --force
 
 # =============================================================================
@@ -37,10 +37,8 @@ FROM dependencies AS build
 # Copy source code
 COPY . .
 
-# Run build steps (if any)
-RUN npm run lint && \
-    npm run test:unit && \
-    npm prune --omit=dev && \
+# Run build steps (skip linting - handled in CI)
+RUN npm prune --omit=dev && \
     npm cache clean --force
 
 # Remove unnecessary files

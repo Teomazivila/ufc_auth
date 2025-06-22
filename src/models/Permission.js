@@ -115,8 +115,8 @@ export class Permission {
     const offset = (page - 1) * limit;
 
     try {
-      let whereConditions = [];
-      let queryParams = [limit, offset];
+      const whereConditions = [];
+      const queryParams = [limit, offset];
       let paramIndex = 3;
 
       // Build dynamic WHERE clause

@@ -128,8 +128,8 @@ tmp/
 temp/
 .tmp/
 
-# Package managers
-package-lock.json
+# Package managers (keep package-lock.json for npm ci)
+# package-lock.json  # DO NOT exclude - needed for npm ci
 yarn.lock
 pnpm-lock.yaml
 
