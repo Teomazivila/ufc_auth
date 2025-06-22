@@ -1,0 +1,228 @@
+name: Build and Publish Docker Image
+
+on:
+  push:
+    branches: [ main ]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+env:
+  DOCKER_REGISTRY: docker.io
+  DOCKER_IMAGE_NAME: teomaz/ufc_auth
+
+jobs:
+  version:
+    name: Determine Version
+    runs-on: ubuntu-latest
+    outputs:
+      new_version: ${{ steps.semver.outputs.new_version }}
+      version_changed: ${{ steps.semver.outputs.version_changed }}
+      changelog: ${{ steps.changelog.outputs.changelog }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get latest tag
+        id: latest_tag
+        run: |
+          latest_tag=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.1.0")
+          # If no tag exists, we want to start with v0.1.0 but not create changelog from beginning
+          if [ "$latest_tag" = "v0.1.0" ] && ! git rev-parse "v0.1.0" >/dev/null 2>&1; then
+            echo "latest_tag=HEAD" >> $GITHUB_OUTPUT
+            echo "initial_version=true" >> $GITHUB_OUTPUT
+          else
+            echo "latest_tag=${latest_tag}" >> $GITHUB_OUTPUT
+            echo "initial_version=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          if [ "${{ steps.latest_tag.outputs.initial_version }}" = "true" ]; then
+            changelog="Initial release v0.1.0"
+          else
+            changelog=$(git log ${{ steps.latest_tag.outputs.latest_tag }}..HEAD --pretty=format:"- %s%n%b")
+          fi
+          echo "changelog<<EOF" >> $GITHUB_OUTPUT
+          echo "$changelog" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Determine version bump
+        id: semver
+        run: |
+          if [ "${{ steps.latest_tag.outputs.initial_version }}" = "true" ]; then
+            echo "new_version=v0.1.0" >> $GITHUB_OUTPUT
+            echo "version_changed=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          latest_version=${{ steps.latest_tag.outputs.latest_tag }}
+          latest_version=${latest_version#v}
+          
+          IFS='.' read -r major minor patch <<< "$latest_version"
+          
+          # Check commit messages since last tag
+          commits=$(git log ${{ steps.latest_tag.outputs.latest_tag }}..HEAD --pretty=format:"%s")
+          
+          version_changed="false"
+          
+          while IFS= read -r commit; do
+            if [[ "$commit" == *"BREAKING CHANGE:"* ]]; then
+              major=$((major + 1))
+              minor=0
+              patch=0
+              version_changed="true"
+              break
+            elif [[ "$commit" == "feat:"* || "$commit" == "feature:"* ]]; then
+              minor=$((minor + 1))
+              patch=0
+              version_changed="true"
+            elif [[ "$commit" == "fix:"* || "$commit" =~ ^[Ff]ix || "$commit" == *"deployment"* || "$commit" == *"docker"* ]]; then
+              patch=$((patch + 1))
+              version_changed="true"
+            fi
+          done <<< "$commits"
+          
+          new_version="v${major}.${minor}.${patch}"
+          
+          echo "new_version=${new_version}" >> $GITHUB_OUTPUT
+          echo "version_changed=${version_changed}" >> $GITHUB_OUTPUT
+          
+          # Debug output
+          echo "Commit messages since last tag:"
+          echo "$commits"
+          echo "Version changed: ${version_changed}"
+          echo "New version: ${new_version}"
+
+  build:
+    name: Build Docker Image
+    needs: [version]
+    if: needs.version.outputs.version_changed == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.DOCKER_REGISTRY }}
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: |
+            ${{ env.DOCKER_IMAGE_NAME }}:latest
+            ${{ env.DOCKER_IMAGE_NAME }}:${{ needs.version.outputs.new_version }}
+          cache-from: type=registry,ref=${{ env.DOCKER_IMAGE_NAME }}:buildcache
+          cache-to: type=registry,ref=${{ env.DOCKER_IMAGE_NAME }}:buildcache,mode=max
+
+  release:
+    name: Create Release
+    needs: [version, build]
+    if: needs.version.outputs.version_changed == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update Changelog
+        if: needs.version.outputs.version_changed == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Create CHANGELOG.md if it doesn't exist
+          if [ ! -f CHANGELOG.md ]; then
+            echo "# Changelog" > CHANGELOG.md
+            echo "" >> CHANGELOG.md
+            echo "All notable changes to this project will be documented in this file." >> CHANGELOG.md
+            echo "" >> CHANGELOG.md
+            echo "The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)," >> CHANGELOG.md
+            echo "and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)." >> CHANGELOG.md
+            echo "" >> CHANGELOG.md
+            echo "## [Unreleased]" >> CHANGELOG.md
+            echo "" >> CHANGELOG.md
+          fi
+          
+          # Get current date
+          release_date=$(date +%Y-%m-%d)
+          
+          # Create new version section from Unreleased
+          sed -i "s/## \[Unreleased\]/## [Unreleased]\n\n### Added\n- None\n\n### Changed\n- None\n\n### Deprecated\n- None\n\n### Removed\n- None\n\n### Fixed\n- None\n\n### Security\n- None\n\n## [${{ needs.version.outputs.new_version }}] - ${release_date}/" CHANGELOG.md
+          
+          # Update links at the bottom of the file
+          if ! grep -q "\[Unreleased\]:" CHANGELOG.md; then
+            echo -e "\n[Unreleased]: https://github.com/${{ github.repository }}/compare/${{ needs.version.outputs.new_version }}...HEAD" >> CHANGELOG.md
+            echo "[${{ needs.version.outputs.new_version }}]: https://github.com/${{ github.repository }}/releases/tag/${{ needs.version.outputs.new_version }}" >> CHANGELOG.md
+          else
+            # Update existing links
+            sed -i "/\[Unreleased\]/c\[Unreleased\]: https://github.com/${{ github.repository }}/compare/${{ needs.version.outputs.new_version }}...HEAD" CHANGELOG.md
+            sed -i "/^\[${{ needs.version.outputs.new_version }}/d" CHANGELOG.md
+            sed -i "/\[Unreleased\]/a\[${{ needs.version.outputs.new_version }}]: https://github.com/${{ github.repository }}/releases/tag/${{ needs.version.outputs.new_version }}" CHANGELOG.md
+          fi
+          
+          # Configure git with token-based authentication
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "github-actions[bot]"
+          git remote set-url origin https://github-actions[bot]:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git
+          git add CHANGELOG.md
+          git commit -m "docs: update changelog for ${{ needs.version.outputs.new_version }}"
+          git push
+
+      - name: Create Release Notes
+        id: release_notes
+        run: |
+          # Extract the current version's changes from CHANGELOG.md
+          awk '/^## \[${{ needs.version.outputs.new_version }}\]/{p=1;print;next} /^## \[/{p=0} p{print}' CHANGELOG.md > release_notes.md
+          
+          # Append installation and documentation information
+          cat << EOF >> release_notes.md
+          
+          ## 🐳 Docker Image
+          \`\`\`bash
+          docker pull ${{ env.DOCKER_IMAGE_NAME }}:${{ needs.version.outputs.new_version }}
+          \`\`\`
+          
+          ## 📚 Documentation
+          See [README.md](README.md) for setup and usage instructions.
+          See [API Documentation](docs/SWAGGER_IMPLEMENTATION.md) for API details.
+          EOF
+
+      - name: Create Tag
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "github-actions[bot]"
+          git remote set-url origin https://github-actions[bot]:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git
+          git tag -a ${{ needs.version.outputs.new_version }} -m "Release ${{ needs.version.outputs.new_version }}"
+          git push origin ${{ needs.version.outputs.new_version }}
+
+      - name: Create Release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ needs.version.outputs.new_version }}
+          release_name: Release ${{ needs.version.outputs.new_version }}
+          body_path: release_notes.md
+          draft: false
+          prerelease: false 

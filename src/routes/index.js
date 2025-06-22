@@ -11,6 +11,8 @@ import permissionRoutes from './permissionRoutes.js';
 import userManagementRoutes from './userManagementRoutes.js';
 // Week 4: Audit routes
 import auditRoutes from './auditRoutes.js';
+// API Documentation routes
+import swaggerRoutes from './swagger.js';
 
 const router = Router();
 
@@ -20,6 +22,9 @@ const router = Router();
 
 // Health check routes (no versioning needed)
 router.use('/health', healthRoutes);
+
+// API Documentation routes (no versioning needed)
+router.use('/', swaggerRoutes);
 
 // API v1 routes
 const v1Router = Router();
@@ -63,8 +68,11 @@ router.get('/api', (req, res) => {
         authorization: 'RBAC (Role-Based Access Control)'
       },
       documentation: {
-        swagger: '/api/docs', // Will be implemented in Week 4
-        postman: '/api/postman' // Will be implemented in Week 4
+        swagger: '/api-docs', // ✅ Interactive Swagger UI
+        openapi_json: '/api-docs/openapi.json', // ✅ OpenAPI JSON
+        openapi_yaml: '/api-docs/openapi.yaml', // ✅ OpenAPI YAML
+        postman: '/api-docs/postman', // ✅ Postman Collection
+        redoc: '/api-docs/redoc' // ✅ Alternative ReDoc UI
       }
     }
   });

@@ -209,7 +209,14 @@ try {
   });
 } catch (error) {
   logger.error('Configuration validation failed:', error.message);
-  process.exit(1);
+  
+  // Don't exit during tests - let tests handle config errors
+  if (config.nodeEnv !== 'test') {
+    process.exit(1);
+  } else {
+    // In test environment, warn but don't exit
+    logger.warn('Configuration validation failed in test environment - continuing with test defaults');
+  }
 }
 
 export default config; 

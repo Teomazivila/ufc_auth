@@ -38,9 +38,146 @@ const router = Router();
  */
 
 /**
- * @route   POST /auth/register
- * @desc    Register a new user
- * @access  Public
+ * @swagger
+ * /api/v1/auth/register:
+ *   post:
+ *     tags: [Authentication]
+ *     summary: Register a new user account
+ *     description: |
+ *       Create a new user account with email verification. The user will receive an email
+ *       to verify their account before they can login.
+ *       
+ *       ### Security Features:
+ *       - Email uniqueness validation
+ *       - Strong password requirements
+ *       - Rate limiting protection
+ *       - Input sanitization
+ *       
+ *       ### Response:
+ *       Returns JWT tokens immediately after registration for seamless UX.
+ *     security: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *               - username
+ *               - password
+ *               - firstName
+ *               - lastName
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 example: "john.doe@example.com"
+ *                 description: Valid email address (must be unique)
+ *               username:
+ *                 type: string
+ *                 minLength: 3
+ *                 maxLength: 30
+ *                 pattern: "^[a-zA-Z0-9_-]+$"
+ *                 example: "johndoe"
+ *                 description: Unique username (alphanumeric, underscore, dash only)
+ *               password:
+ *                 type: string
+ *                 minLength: 8
+ *                 example: "SecurePass123!"
+ *                 description: |
+ *                   Strong password requirements:
+ *                   - Minimum 8 characters
+ *                   - At least one uppercase letter
+ *                   - At least one lowercase letter  
+ *                   - At least one number
+ *                   - At least one special character
+ *               firstName:
+ *                 type: string
+ *                 minLength: 1
+ *                 maxLength: 50
+ *                 example: "John"
+ *                 description: User's first name
+ *               lastName:
+ *                 type: string
+ *                 minLength: 1
+ *                 maxLength: 50
+ *                 example: "Doe"
+ *                 description: User's last name
+ *           examples:
+ *             newUser:
+ *               summary: New user registration
+ *               value:
+ *                 email: "john.doe@example.com"
+ *                 username: "johndoe"
+ *                 password: "SecurePass123!"
+ *                 firstName: "John"
+ *                 lastName: "Doe"
+ *     responses:
+ *       '201':
+ *         description: User registered successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     message:
+ *                       type: string
+ *                       example: "Registration successful"
+ *                     user:
+ *                       $ref: '#/components/schemas/User'
+ *                     tokens:
+ *                       $ref: '#/components/schemas/JWTTokens'
+ *             examples:
+ *               success:
+ *                 summary: Successful registration
+ *                 value:
+ *                   success: true
+ *                   data:
+ *                     message: "Registration successful"
+ *                     user:
+ *                       id: "123e4567-e89b-12d3-a456-426614174000"
+ *                       email: "john.doe@example.com"
+ *                       username: "johndoe"
+ *                       firstName: "John"
+ *                       lastName: "Doe"
+ *                       status: "pending_verification"
+ *                       emailVerified: false
+ *                       twoFactorEnabled: false
+ *                       createdAt: "2025-01-15T10:30:00.000Z"
+ *                     tokens:
+ *                       accessToken: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+ *                       refreshToken: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+ *                       expiresIn: "15m"
+ *                       tokenType: "Bearer"
+ *       '400':
+ *         $ref: '#/components/responses/ValidationError'
+ *       '409':
+ *         description: User already exists
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: "User with this email already exists"
+ *                 code:
+ *                   type: string
+ *                   example: "USER_EXISTS"
+ *       '429':
+ *         $ref: '#/components/responses/RateLimit'
+ *       '500':
+ *         $ref: '#/components/responses/ServerError'
  */
 router.post('/register', 
   authRateLimit,
@@ -92,9 +229,189 @@ router.post('/register',
 );
 
 /**
- * @route   POST /auth/login
- * @desc    Authenticate user and return tokens
- * @access  Public
+ * @swagger
+ * /api/v1/auth/login:
+ *   post:
+ *     tags: [Authentication]
+ *     summary: Authenticate user and get JWT tokens
+ *     description: |
+ *       Authenticate a user with email/password and optionally 2FA token.
+ *       Returns JWT access and refresh tokens for subsequent API calls.
+ *       
+ *       ### Authentication Flow:
+ *       1. **Basic Auth**: Email + Password
+ *       2. **2FA** (if enabled): TOTP token or backup code
+ *       3. **Account Security**: Automatic lockout after failed attempts
+ *       
+ *       ### Security Features:
+ *       - Rate limiting (5 attempts per 15 minutes)
+ *       - Account lockout protection
+ *       - 2FA support
+ *       - Session management
+ *     security: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *               - password
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 example: "john.doe@example.com"
+ *                 description: User's registered email address
+ *               password:
+ *                 type: string
+ *                 example: "SecurePass123!"
+ *                 description: User's password
+ *               twoFactorToken:
+ *                 type: string
+ *                 pattern: "^[0-9]{6}$"
+ *                 example: "123456"
+ *                 description: 6-digit TOTP token (required if 2FA enabled)
+ *               backupCode:
+ *                 type: string
+ *                 example: "ABC123DEF456"
+ *                 description: Backup code (alternative to TOTP)
+ *               rememberMe:
+ *                 type: boolean
+ *                 default: false
+ *                 example: true
+ *                 description: Extend token validity (extends refresh token lifetime)
+ *           examples:
+ *             basicLogin:
+ *               summary: Basic login (no 2FA)
+ *               value:
+ *                 email: "john.doe@example.com"
+ *                 password: "SecurePass123!"
+ *                 rememberMe: false
+ *             loginWith2FA:
+ *               summary: Login with 2FA token
+ *               value:
+ *                 email: "admin@example.com"
+ *                 password: "AdminPass123!"
+ *                 twoFactorToken: "123456"
+ *                 rememberMe: true
+ *             loginWithBackup:
+ *               summary: Login with backup code
+ *               value:
+ *                 email: "user@example.com"
+ *                 password: "UserPass123!"
+ *                 backupCode: "ABC123DEF456"
+ *     responses:
+ *       '200':
+ *         description: Login successful or 2FA required
+ *         content:
+ *           application/json:
+ *             schema:
+ *               oneOf:
+ *                 - type: object
+ *                   properties:
+ *                     success:
+ *                       type: boolean
+ *                       example: true
+ *                     data:
+ *                       type: object
+ *                       properties:
+ *                         message:
+ *                           type: string
+ *                           example: "Login successful"
+ *                         user:
+ *                           $ref: '#/components/schemas/User'
+ *                         tokens:
+ *                           $ref: '#/components/schemas/JWTTokens'
+ *                 - type: object
+ *                   properties:
+ *                     success:
+ *                       type: boolean
+ *                       example: true
+ *                     data:
+ *                       type: object
+ *                       properties:
+ *                         requiresTwoFactor:
+ *                           type: boolean
+ *                           example: true
+ *                         message:
+ *                           type: string
+ *                           example: "2FA verification required"
+ *                         userId:
+ *                           type: string
+ *                           format: uuid
+ *             examples:
+ *               successLogin:
+ *                 summary: Successful login with tokens
+ *                 value:
+ *                   success: true
+ *                   data:
+ *                     message: "Login successful"
+ *                     user:
+ *                       id: "123e4567-e89b-12d3-a456-426614174000"
+ *                       email: "john.doe@example.com"
+ *                       username: "johndoe"
+ *                       firstName: "John"
+ *                       lastName: "Doe"
+ *                       status: "active"
+ *                       emailVerified: true
+ *                       twoFactorEnabled: false
+ *                       lastLogin: "2025-01-15T10:30:00.000Z"
+ *                     tokens:
+ *                       accessToken: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+ *                       refreshToken: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+ *                       expiresIn: "15m"
+ *                       tokenType: "Bearer"
+ *               requires2FA:
+ *                 summary: 2FA verification required
+ *                 value:
+ *                   success: true
+ *                   data:
+ *                     requiresTwoFactor: true
+ *                     message: "2FA verification required"
+ *                     userId: "123e4567-e89b-12d3-a456-426614174000"
+ *       '400':
+ *         $ref: '#/components/responses/ValidationError'
+ *       '401':
+ *         description: Authentication failed
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: "Invalid email or password"
+ *                 code:
+ *                   type: string
+ *                   example: "INVALID_CREDENTIALS"
+ *             examples:
+ *               invalidCredentials:
+ *                 summary: Invalid email or password
+ *                 value:
+ *                   success: false
+ *                   message: "Invalid email or password"
+ *                   code: "INVALID_CREDENTIALS"
+ *               accountLocked:
+ *                 summary: Account locked due to failed attempts
+ *                 value:
+ *                   success: false
+ *                   message: "Account is locked. Try again in 15 minutes."
+ *                   code: "ACCOUNT_LOCKED"
+ *               invalid2FA:
+ *                 summary: Invalid 2FA token
+ *                 value:
+ *                   success: false
+ *                   message: "Invalid 2FA token or backup code"
+ *                   code: "INVALID_2FA"
+ *       '429':
+ *         $ref: '#/components/responses/RateLimit'
+ *       '500':
+ *         $ref: '#/components/responses/ServerError'
  */
 router.post('/login',
   authRateLimit,
