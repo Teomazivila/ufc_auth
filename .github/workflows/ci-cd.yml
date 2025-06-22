@@ -11,7 +11,6 @@ on:
   workflow_dispatch:
 
 env:
-  DOCKER_REGISTRY: docker.io
   DOCKER_IMAGE_NAME: teomaz/ufc_auth
 
 jobs:
