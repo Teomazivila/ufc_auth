@@ -1,0 +1,10 @@
+UFP - Autenticacao e Autorizacao
+
+
+O projecto esta compose por um CI/CD forte. https://github.com/Teomazivila/ufc_auth/actions/runs/15807893778
+
+Onde faco a compilacao do codico em uma docker image `teomaz/ufc_auth:v0.1.0`, fazendo o uso de versionamento semantico (Symantic Versioning).
+
+A mesma imgaem e usada para fazer o seu deployment
+https://ufpauth.teomazivila.com
+https://ufpauth.teomazivila.com/api-docs/
